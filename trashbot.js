@@ -28,13 +28,12 @@ let prefix = config.prefix;
 // Stop if it's not there or if the sender is a bot.
 if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-
   // Todo: Clean up handling of commands.
   if(message.content == responseObject[message.content]){
     message.channel.send(responseObject[message.content]);
   }
   // !fact
-  // Todo: Add handling for repeats
+  // Todo: Clean this up
   if(message.content.startsWith(prefix + "fact")){
     var freshFact = false;
     var num = getRand(1, facts.factNum);
@@ -65,6 +64,25 @@ if (!message.content.startsWith(prefix) || message.author.bot) return;
     }else{
     message.channel.send(getFunFact(num));
     }
+  } // end !fact
+
+  // !addfact
+  if(message.content.startsWith(prefix + "addfact") && message.author.id == config.ownerID){
+      var newFact = message.content.split(" ");
+      var toAdd = "";
+      for(i = 1; i<newFact.length; i++){
+        if(i == newFact.length-1){
+          toAdd = toAdd + newFact[i];
+        }else{
+        toAdd = toAdd + newFact[i] + " ";
+        }
+      }
+      toAdd = writeFunFact(toAdd);
+      if(toAdd == true){
+        message.channel.send("Added!");
+      }else{
+        message.channel.send("I couldn't add that to my list. It may be a duplicate of an existing fact.");
+      }
   }
   // !secret
   // Todo: remove/replace
@@ -99,6 +117,19 @@ function getFunFact(num) {
   return funFact[num];
 }
 
-/*function writeFunFact(funFact){
-
-}*/
+function writeFunFact(msg){
+  let funFact = JSON.parse(fs.readFileSync("./facts.json", "utf8"));
+  if(!funFact.toAdd){
+    var num = facts.factNum;
+    num++;
+    facts[num] = msg;
+    facts.factNum = num;
+    fs.writeFile("./facts.json", JSON.stringify(facts), (err) => {
+      if (err){
+        console.error(err);
+        return false;
+      }
+    });
+    return true;
+  }
+}
