@@ -74,7 +74,7 @@ client.on("message", (message) => {
       var ohhai = getFunFact(num);
       message.channel.send(ohhai + "<@" + message.author.id + ">");
     }else{
-    message.channel.send(getFunFact(num));
+    message.channel.send(getFunFact(config.factFile, num));
     lastSent = new Date().getTime()/1000;
     }
   } // end !fact
@@ -172,7 +172,7 @@ function deleteBotMsg(message){
 }
 
 // Return a fun fact from facts.json based on a provided integer
-function getFunFact(num) {
+function getFunFact(filename, num) {
   let funFact = JSON.parse(fs.readFileSync("./facts.json", "utf8"));
   return funFact[num];
 }
