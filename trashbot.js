@@ -1,11 +1,12 @@
 const Discord = require("discord.js");
 const config = require("./config.json");
 const facts = require("./facts.json");
-const responseObject = require("./commands.json");
+//const responseObject = require("./commands.json");
 const fs = require("fs");
 const client = new Discord.Client();
 var statedFacts = new Array;
 var lastWritten = 0;
+var lastSent = new Date().getTime()/1000;
 
 // Use token to log in. Provided by config.json
 client.login(config.token);
@@ -22,6 +23,10 @@ client.on("warn", (e) => console.warn(e));
 client.on("debug", (e) => console.info(e));
 
 client.on("message", (message) => {
+if(message.content.startsWith("Slow down! It's only been ") && message.author.bot){
+    message.delete(3000);
+}
+
 // Set a prefix
 let prefix = config.prefix;
 
@@ -29,12 +34,14 @@ let prefix = config.prefix;
 if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   // Todo: Clean up handling of commands.
-  if(message.content == responseObject[message.content]){
-    message.channel.send(responseObject[message.content]);
-  }
   // !fact
   // Todo: Clean this up
   if(message.content.startsWith(prefix + "fact")){
+    var now = new Date().getTime()/1000;
+    if (now-lastSent <= 5){
+      message.channel.send("Slow down! It's only been " + Math.abs(Math.ceil(lastSent-now)) + " seconds since my last fact!");
+      return;
+    }
     var freshFact = false;
     var num = getRand(1, facts.factNum);
 
@@ -63,11 +70,12 @@ if (!message.content.startsWith(prefix) || message.author.bot) return;
       message.channel.send(ohhai + "<@" + message.author.id + ">");
     }else{
     message.channel.send(getFunFact(num));
+    lastSent = new Date().getTime()/1000;
     }
   } // end !fact
 
   // !addfact
-  if(message.content.startsWith(prefix + "addfact") && message.author.id == config.ownerID){
+  if(message.content.startsWith(prefix + "addfact") && message.channel.permissionsFor(message.member).hasPermission("ADMINISTRATOR")){
       var newFact = message.content.split(" ");
       var toAdd = "";
       for(i = 1; i<newFact.length; i++){
@@ -81,27 +89,9 @@ if (!message.content.startsWith(prefix) || message.author.bot) return;
       if(toAdd == true){
         message.channel.send("Added!");
       }else{
-        message.channel.send("I couldn't add that to my list. It may be a duplicate of an existing fact.");
+        message.channel.send("I couldn't add that to my list. It may be a duplicate of an existing fact or the fact file is inaccessible.");
       }
-  }
-  // !secret
-  // Todo: remove/replace
-  if(message.content.startsWith(prefix + "secret")){
-    // Exit if this command does not come from the bot's owner
-    if(message.author.id !== config.ownerID) return;
-    message.channel.send("Good job, Ved, you fucking cuck.");
-  }
-  // !admin
-  // Todo: remove/replace
-  if(message.content.startsWith(prefix + "admin")){
-    if(!message.channel.permissionsFor(message.member).hasPermission("ADMINISTRATOR")) return;
-    message.channel.send("Hey, good to see ya <@" + message.author.id + ">");
-  }
-  // !id
-  // Todo: remove/replace
-  if(message.content.startsWith(prefix + "id")){
-    message.channel.send(message.author.id);
-  }
+  } // end !addfact
 });
 
 // Fetch a number between min and max, inclusive
@@ -117,6 +107,7 @@ function getFunFact(num) {
   return funFact[num];
 }
 
+// Write new fun facts to the fact file. :^)
 function writeFunFact(msg){
   let funFact = JSON.parse(fs.readFileSync("./facts.json", "utf8"));
   if(!funFact.toAdd){
