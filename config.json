@@ -1,5 +1,7 @@
 {
   "token": "MzQxNzI5ODg5NDE1ODU2MTI4.DGFUcQ.ts7vTNiT6BSLpdhy4_XGW0LMjGg",
   "prefix": "!",
-  "ownerID": "209160830938382336"
+  "ownerID": "209160830938382336",
+  "factFile": "./facts.json",
+  "botID": "341729889415856128"
 }
