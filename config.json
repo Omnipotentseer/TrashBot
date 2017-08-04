@@ -1,7 +1,10 @@
 {
-  "token": "MzQxNzI5ODg5NDE1ODU2MTI4.DGFUcQ.ts7vTNiT6BSLpdhy4_XGW0LMjGg",
+  "token": "MzQyNDgyMDYzMzAxMTQ4Njcy.DGQVag.YP6wk7pHLdmzLQrmZJ1hgDrrsBw",
   "prefix": "!",
   "ownerID": "209160830938382336",
   "factFile": "./facts.json",
-  "botID": "341729889415856128"
+  "eightBallFile": "./eightball.json",
+  "botID": "342482063301148672",
+  "coinHead": "idea",
+  "coinTail": "ass"
 }
