@@ -9,8 +9,9 @@
     },
     "rules": {
         "no-console": "off",
+        "no-unused-vars": "warn",
         "linebreak-style": [
-            "error",
+            "warn",
             "windows"
         ],
         "quotes": [

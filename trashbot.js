@@ -3,6 +3,7 @@ const config = require("./config.json");
 const client = new Discord.Client();
 const facts = require(config.factFile);
 const magic = require(config.eightBallFile);
+const eventsFile =require(config.eventsFile);
 //const responseObject = require("./commands.json");
 const fs = require("fs");
 var statedFacts = new Array;
@@ -37,6 +38,7 @@ client.login(config.token);
 client.on("ready", () => {
   console.log("TrashBot connected.");
   client.user.setGame("I Eat Garbage");
+  var interval = setInterval(function(){checkSchedules();}, 60000);
 });
 
 // Error handlers
@@ -100,6 +102,7 @@ client.on("message", (message) => {
     }else{
     message.channel.send(getFunFact(config.factFile, num));
     lastSent = new Date().getTime()/1000;
+    writeData("fact");
     }
   } // end !fact
 
@@ -158,7 +161,7 @@ client.on("message", (message) => {
 
     var valid = valiDate(newEvent[2], newEvent[3]);
     if(valid == false){
-      message.channel.send("The date or time provided was invalid.\nCorrect date syntax is: mm/dd/yyyy and this cannot preceed the current date.\nCorrect time syntax is: hmm.a or hmm.p and cannot preceed the current time.");
+      message.channel.send("The date or time provided was invalid.\nCorrect date syntax is: mm/dd/yyyy and needs to be at least a day out.\nCorrect time syntax is: hmm.a or hmm.p");
       message.delete(9500);
       return;
     }
@@ -185,11 +188,30 @@ client.on("message", (message) => {
     };
 
     // todo: Work this into the existing file writing method
-    // todo: Check if the file exists, return a message that it does.
     // Write the new file with event details.
+    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    var numEvents = eventReader.numEvents;
+    if(numEvents >= 10){
+      message.channel.send("There's already " + numEvents + " events on my calendar, I'm not keeping track of another one.");
+      message.delete(3500);
+      return;
+    }
+    numEvents++;
+    eventReader.numEvents = numEvents;
+    eventReader[numEvents] = eventTime.name;
+    fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
+      if(err){
+        console.error(err);
+        message.channel.send("Sorry, something went wrong and I couldn't add this event.");
+        return;
+      }
+    });
+
     fs.writeFile("./" + newEvent[1]+ ".json", JSON.stringify(eventTime), (err) =>{
       if (err){
         console.error(err);
+        message.channel.send("Sorry, something went wrong and I couldn't add this event.");
+        return;
       }
     });
     message.channel.send("Added!");
@@ -291,6 +313,7 @@ client.on("message", (message) => {
     }
     num = getRand(1, magic.phrases);
     message.channel.send("🎱 " + getFunFact(config.eightBallFile, num));
+    writeData("eightball");
   }
 
   // !coin - Coin flip
@@ -309,9 +332,11 @@ client.on("message", (message) => {
     if(getRand(1, 2) == 1){
       const heads = message.guild.emojis.find("name", config.coinHead);
       message.channel.send(`${heads}` + " heads!");
+      writeData("coin");
     }else{
       const tails = message.guild.emojis.find("name", config.coinTail);
       message.channel.send(`${tails}` + " tails!");
+      writeData("coin");
     }
   }
 
@@ -372,17 +397,11 @@ function valiDate(date, time){
   var currentDate = new Date;
 
 
-  if(testDate.getFullYear() < currentDate.getFullYear()){
-    console.log("evt yr: " + testDate.getFullYear() + "cur yr: " + currentDate.getFullYear());
+  if(testDate.getUTCFullYear() < currentDate.getUTCFullYear()){
     return false;
-  }else if(testDate.getMonth() < currentDate.getMonth()){
-    console.log("evt mo: " + testDate.getMonth() + "cur mo: " + currentDate.getMonth());
+  }else if(testDate.getUTCMonth() < currentDate.getUTCMonth()){
     return false;
-  }else if(testDate.getDay() < currentDate.getDay()){
-    console.log("evt day: " + testDate.getDay() + "cur day: " + currentDate.getDay());
-    return false;
-  }else if(testDate.getTime() <= currentDate.getTime()){
-    console.log("evt tm: " + testDate.getTime() + "cur tm: " + currentDate.getTime());
+  }else if(testDate.getUTCDay() <= currentDate.getUTCDay()){
     return false;
   }
 }
@@ -429,6 +448,8 @@ function deleteBotMsg(message){
         message.delete(9000);
       }else if(message.content.startsWith("This event already exists!")){
         message.delete(3000);
+      }else if(message.content.startsWith("There's already ")){
+        message.delete(3000);
       }
     }
 }
@@ -456,4 +477,49 @@ function writeToFile(filename, msg){
     });
     return true;
   }
+}
+
+function checkSchedules(){
+  var date = new Date();
+  if(eventsFile.numEvents == 0){
+    return;
+  }
+  let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+  for(var i = 1; i <= eventsFile.numEvents; i++){
+    let newReader = JSON.parse(fs.readFileSync("./" + eventReader[i] + ".json", "utf8"));
+    if (newReader.isEvent == false){
+      return;
+    }
+    var dateArray = newReader.date.split("/");
+    var timeArray = newReader.time.split(".");
+
+    var eventCheck = new Date(parseInt(dateArray[2]), parseInt(dateArray[0]-1), parseInt(dateArray[1]), parseInt(timeArray[0].substring(0, Math.floor(timeArray[0].length))), parseInt(timeArray[0].substring(Math.floor(timeArray[0].length))));
+    if(eventCheck.getUTCFullYear() < date.getUTCFullYear()){
+      return;
+    }else if(eventCheck.getUTCMonth() < date.getUTCMonth()){
+      return;
+    }else if(eventCheck.getUTCDay() < date.getUTCDay()){
+      return;
+    }else if(eventCheck.getTime() < date.getTime()){
+      return;
+    }
+    dateArray = ""; // Recycling :^)
+    for(i = 0; i < newReader.attendees.length; i++){
+      dateArray += "<@" + newReader.attendees[i] + "> ";
+    }
+    client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
+  }
+}
+
+// Todo: Destroy this and fix the fucking write to file method you chud
+function writeData(command){
+  let readFile = JSON.parse(fs.readFileSync(config.dataFile, "utf8"));
+  var num = readFile[command];
+  num++;
+  readFile[command] = num;
+  fs.writeFile(config.dataFile, JSON.stringify(readFile), (err) => {
+    if (err){
+      console.error(err);
+    }
+  });
 }

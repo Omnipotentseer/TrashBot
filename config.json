@@ -4,6 +4,10 @@
   "ownerID": "209160830938382336",
   "factFile": "./facts.json",
   "eightBallFile": "./eightball.json",
+  "eventsFile": "./events.json",
+  "dataFile": "./data.json",
+  "announceChannel": "pantspartygeneral",
+  "testAnnounceChan": "your-private-messages",
   "botID": "342482063301148672",
   "coinHead": "idea",
   "coinTail": "ass"
