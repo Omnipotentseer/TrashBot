@@ -38,7 +38,7 @@ client.login(config.token);
 client.on("ready", () => {
   console.log("TrashBot connected.");
   client.user.setGame("I Eat Garbage");
-  var interval = setInterval(function(){checkSchedules();}, 60000);
+  var interval = setInterval(function(){checkSchedules();}, 1000);
 });
 
 // Error handlers
@@ -496,11 +496,15 @@ function checkSchedules(){
       return;
     }
     var dateArray = "";
-    for(i = 0; i < newReader.attendees.length; i++){
-      dateArray += "<@" + newReader.attendees[i] + "> ";
+    if(newReader.attendees.length == 0){
+        dateArray = "None";
+    }else{
+      for(i = 0; i < newReader.attendees.length; i++){
+        dateArray += "<@" + newReader.attendees[i] + "> ";
+      }
     }
-    // client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
-    //config.eventsFile.remove();
+    client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
+    config.eventsFile.remove();
   }
 }
 
