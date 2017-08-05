@@ -89,7 +89,7 @@ client.on("message", (message) => {
 
     // Store the fact in the fact array, return to the start if we've reached the end
     statedFacts[lastWritten] = num;
-    if(lastWritten == 5){
+    if(lastWritten == config.factMemory){
       lastWritten = 0;
     }else{
       lastWritten++;
@@ -147,25 +147,14 @@ client.on("message", (message) => {
       return;
     }
 
-    /*
-        Date formatting - mm/dd/yyyy
-        Time formatting - hhmm.p/a
-
-        Todo: Bring back events.json, have the event writing method hold the event's
-        filename. Have the method that's checking whether or not to announce an event
-        iterate through the events file to read the individual event files.
-
-        Todo: Max of 10 events.
-    */
-
-
     var valid = valiDate(newEvent[2], newEvent[3]);
     if(valid == false){
       message.channel.send("The date or time provided was invalid.\nCorrect date syntax is: mm/dd/yyyy and needs to be at least a day out.\nCorrect time syntax is: hmm.a or hmm.p");
       message.delete(9500);
       return;
     }
-    // TrashBot assumes an event exists until he checks.
+
+    // Checks if the event already exists
     var fileName = "./" + newEvent[1] + ".json";
     var eventExists = fileExists(fileName);
 
@@ -176,12 +165,23 @@ client.on("message", (message) => {
       return;
     }
 
-    // Todo: Actual time formatting/handling
+
+    var eventDate = convertDate(newEvent[2]);
+
+    var convertedTime = newEvent[3].split(".");
+    convertedTime = convertTime(convertedTime);
+
+    eventDate.setUTCHours(parseInt(convertedTime[0]));
+    eventDate.setUTCMinutes(parseInt(convertedTime[1]));
+
     // The scheduler is automatically listed as the host of the event.
+
+    /*
+        Consider adding an 'announced' var until reworking the file system
+    */
     var eventTime = {
       "name" : newEvent[1],
-      "date" : newEvent[2],
-      "time" : newEvent[3],
+      "time" : eventDate.getTime(),
       "hostID" : message.author.id,
       "attendees" : ["None"],
       "isEvent" : true
@@ -365,6 +365,8 @@ function valiDate(date, time){
       return false;
     }
   }
+
+  var testDate = new Date(parseInt(checkDate[2]), parseInt(checkDate[0]-1), parseInt(checkDate[1]));
   // End date validation
 
   // Time syntax validation
@@ -386,22 +388,14 @@ function valiDate(date, time){
     return false;
   }
 
+  checkTime = convertTime(checkTime);
 
-  if(checkTime[0].length == 3){
-    var timeSplit = [parseInt(checkTime[0].substring(0, 1)), parseInt(checkTime[0].substring(1))];
-  }else{
-    timeSplit = [parseInt(checkTime[0].substring(0, 2)), parseInt(checkTime[0].substring(2))];
-  }
+  testDate.setUTCHours(parseInt(checkTime[0]));
+  testDate.setUTCMinutes(parseInt(checkTime[1]));
 
-  var testDate = new Date(parseInt(checkDate[2]), parseInt(checkDate[0]-1), parseInt(checkDate[1]), parseInt(timeSplit[0]), parseInt(timeSplit[1]));
-  var currentDate = new Date;
+  var currentDate = new Date();
 
-
-  if(testDate.getUTCFullYear() < currentDate.getUTCFullYear()){
-    return false;
-  }else if(testDate.getUTCMonth() < currentDate.getUTCMonth()){
-    return false;
-  }else if(testDate.getUTCDay() <= currentDate.getUTCDay()){
+  if(testDate.getTime() < currentDate.getTime()){
     return false;
   }
 }
@@ -490,24 +484,23 @@ function checkSchedules(){
     if (newReader.isEvent == false){
       return;
     }
-    var dateArray = newReader.date.split("/");
-    var timeArray = newReader.time.split(".");
+    var eventCheck = new Date(parseInt(newReader.time));
 
-    var eventCheck = new Date(parseInt(dateArray[2]), parseInt(dateArray[0]-1), parseInt(dateArray[1]), parseInt(timeArray[0].substring(0, Math.floor(timeArray[0].length))), parseInt(timeArray[0].substring(Math.floor(timeArray[0].length))));
-    if(eventCheck.getUTCFullYear() < date.getUTCFullYear()){
-      return;
-    }else if(eventCheck.getUTCMonth() < date.getUTCMonth()){
-      return;
-    }else if(eventCheck.getUTCDay() < date.getUTCDay()){
-      return;
-    }else if(eventCheck.getTime() < date.getTime()){
+    console.log(eventCheck);
+    console.log(date);
+
+    console.log(eventCheck.getTime());
+    console.log(date.getTime());
+
+    if(eventCheck.getTime() >= date.getTime()){
       return;
     }
-    dateArray = ""; // Recycling :^)
+    var dateArray = "";
     for(i = 0; i < newReader.attendees.length; i++){
       dateArray += "<@" + newReader.attendees[i] + "> ";
     }
-    client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
+    // client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
+    //config.eventsFile.remove();
   }
 }
 
@@ -522,4 +515,22 @@ function writeData(command){
       console.error(err);
     }
   });
+}
+
+function convertTime(time){
+  if(time[1] == "a"){
+      return [parseInt(time[0].substring(0, Math.floor(time[0].length/2))), parseInt(time[0].substring(Math.floor(time[0].length/2)))];
+  }
+  var hours = parseInt(time[0].substring(0, Math.floor(time[0].length/2)));
+  var min = parseInt(time[0].substring(Math.floor(time[0].length/2)));
+
+  hours += 12;
+
+  return [hours, min];
+}
+
+function convertDate(date){
+  date = date.split("/");
+  date = new Date(parseInt(date[2]), parseInt(date[0]-1), parseInt(date[1]));
+  return date;
 }
