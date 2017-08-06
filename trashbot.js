@@ -3,12 +3,13 @@ const config = require("./config.json");
 const client = new Discord.Client();
 const facts = require(config.factFile);
 const magic = require(config.eightBallFile);
-const eventsFile =require(config.eventsFile);
+const eventsFile = require(config.eventsFile);
 //const responseObject = require("./commands.json");
 const fs = require("fs");
 var statedFacts = new Array;
 var lastWritten = 0;
 var lastSent = new Date().getTime()/1000;
+var lastCommand;
 
 /*
   ----------------Suggestion bin------------------
@@ -37,8 +38,8 @@ client.login(config.token);
 // Initialization
 client.on("ready", () => {
   console.log("TrashBot connected.");
-  client.user.setGame("I Eat Garbage");
-  var interval = setInterval(function(){checkSchedules();}, 1000);
+  client.user.setGame("!trash for commands");
+  var timeInterval = setInterval(function(){checkSchedules();}, 60000);
 });
 
 // Error handlers
@@ -131,7 +132,12 @@ client.on("message", (message) => {
   } // end !addfact
 
   // !schedule - Schedule an event with TrashBot
-  if (message.content.startsWith(prefix + "schedule") && message.author.id == config.ownerID){
+  if (message.content.startsWith(prefix + "schedule")){
+    if(!message.channel.permissionsFor(message.member).has("MANAGE_CHANNELS" || !message.author.id == config.ownerID)){
+      message.channel.send("You don't have permission to do that.");
+      message.delete(3500);
+      return;
+    }
     var newEvent = message.content.split(" ");
     if (newEvent.length < 2){
       message.channel.send("Your event needs a name."); // newEvent[1] is event name
@@ -165,27 +171,17 @@ client.on("message", (message) => {
       return;
     }
 
-
     var eventDate = convertDate(newEvent[2]);
 
     var convertedTime = newEvent[3].split(".");
     convertedTime = convertTime(convertedTime);
 
-    eventDate.setUTCHours(parseInt(convertedTime[0]));
-    eventDate.setUTCMinutes(parseInt(convertedTime[1]));
+    eventDate.setHours(parseInt(convertedTime[0]));
+    eventDate.setMinutes(parseInt(convertedTime[1]));
 
     // The scheduler is automatically listed as the host of the event.
-
-    /*
-        Consider adding an 'announced' var until reworking the file system
-    */
-    var eventTime = {
-      "name" : newEvent[1],
-      "time" : eventDate.getTime(),
-      "hostID" : message.author.id,
-      "attendees" : ["None"],
-      "isEvent" : true
-    };
+    // Event name, event time, host, attendees array
+    var eventData = [newEvent[1], eventDate.getTime(), message.author.id, ["None"]];
 
     // todo: Work this into the existing file writing method
     // Write the new file with event details.
@@ -198,17 +194,9 @@ client.on("message", (message) => {
     }
     numEvents++;
     eventReader.numEvents = numEvents;
-    eventReader[numEvents] = eventTime.name;
+    eventReader[eventData[0]] = eventData;
     fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
       if(err){
-        console.error(err);
-        message.channel.send("Sorry, something went wrong and I couldn't add this event.");
-        return;
-      }
-    });
-
-    fs.writeFile("./" + newEvent[1]+ ".json", JSON.stringify(eventTime), (err) =>{
-      if (err){
         console.error(err);
         message.channel.send("Sorry, something went wrong and I couldn't add this event.");
         return;
@@ -220,84 +208,205 @@ client.on("message", (message) => {
   // !event - List the details of an event: Name, time, host, attendees
   if(message.content.startsWith(prefix + "event") && message.author.id == config.ownerID){
     var checkEvent = message.content.split(" ");
+
+    // Stop if there is no event argument
     if(checkEvent.length < 2){
       message.channel.send("I need an event to check.");
       message.delete(3500);
       return;
     }
 
-    var filename = "./" + checkEvent[1] + ".json";
+    // Open the event file
+    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
 
-    if(fileExists(filename) == true){
-      let eventRead = JSON.parse(fs.readFileSync(filename, "utf8"));
-      message.channel.send("Event: " + eventRead.name + "\nDate: " + eventRead.date + "\nTime: " + eventRead.time + "\nHost: " + client.users.get(eventRead.hostID).username);
-        var attendeeNames = "";
-      for(i = 0; i < eventRead.attendees.length; i++){
-        if(i == eventRead.attendees.length - 1){
-          attendeeNames += client.users.get(eventRead.attendees[i]).username;
-        }else{
-          attendeeNames += client.users.get(eventRead.attendees[i]).username + ", ";
-        }
-      }
-      message.channel.send("Attendees: " + attendeeNames);
-    }else{
+    // Stop if the event is not in the event file
+    if(!eventReader.hasOwnProperty(checkEvent[1])){
       message.channel.send("I couldn't find that event.");
       message.delete(3500);
+      return;
     }
 
+    var attendees = "";
+    if(eventReader[checkEvent[1]][3][0] == "None"){
+      attendees += "None";
+    }else{
+      for(i = 0; i < eventReader[checkEvent[1]][3].length; i++){
+        if(i == eventReader[checkEvent[1]][3].length - 1){
+          attendees += client.users.get(eventReader[checkEvent[1]][3][i]).username;
+        }else{
+          attendees += client.users.get(eventReader[checkEvent[1]][3][i]).username; + ", ";
+        }
+      }
+    }
+
+
+    var embedDate = new Date(parseInt(eventReader[checkEvent[1]][1]));
+
+    message.channel.send({embed: {
+      color: 0xffffff,
+      title: eventReader[checkEvent[1]][0],
+      fields: [{
+        name: "Host",
+        value: client.users.get(eventReader[checkEvent[1]][2]).username
+      },
+      {
+        name: "Attendees",
+        value: attendees
+      },
+      {
+        name: "Date",
+        value: embedDate.toDateString(),
+        inline: true
+      },
+      {
+        name: "Time",
+        value: embedDate.toLocaleTimeString() + " (Pacific)",
+        inline: true
+      }
+    ],
+      timestamp: new Date(),
+      footer: {
+        icon_url: client.user.avatarURL,
+        text: "Brought to you by TrashBot"
+      }
+    }});
   }
 
-  // Todo: This is a horrid mess.
   // !signup - Sign up for an event
     if(message.content.startsWith(prefix + "signup")){
+      // Make sure the user entered an event to sign up for
       var signup = message.content.split(" ");
       if (signup.length < 2){
         message.channel.send("You need an event to sign up to.");
         message.delete(3500);
         return;
       }
-      filename = "./" + signup[1] + ".json";
-      let eventRead = JSON.parse(fs.readFileSync(filename, "utf8"));
-      if(!eventRead.isEvent || !fileExists(filename)){
+
+      // Validation for signups
+      let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+      if(!eventReader.hasOwnProperty(signup[1])){
         message.channel.send("That's not a currently active event.");
         message.delete(3500);
         return;
       }
-      if(eventRead.hostID == message.author.id){
+      if(eventReader[signup[1]][2] == message.author.id){
         message.channel.send("You're already hosting this event.");
+        message.delete(3500);
         return;
       }
-      if(eventRead.attendees[0] == "None"){
-        eventRead.attendees[0] = message.author.id;
-        fs.writeFile(filename, JSON.stringify(eventRead), (err) => {
-          if (err){
-            console.error(err);
-            message.channel.send("Sorry, I couldn't add you. Something went wrong.");
+
+      var nextAtten = eventReader[signup[1]][3].length;
+      // if there's attendees, make sure the sender isn't signed up
+      if(!eventReader[signup[1]][3][0] == "None"){
+        for(i = 0; i < eventReader[signup[1]][3].length; i++){
+          if(eventReader[3][i] == message.author.id){
+            message.channel.send("You're already signed up for this event.");
+            message.delete(3500);
             return;
           }
-          message.channel.send("See you there!");
-          }
-        );}else{
-          for(i = 0; i < eventRead.attendees.length; i++){
-            if (eventRead.attendees[i] == message.author.id){
-              message.channel.send("You're already signed up for this event.");
-              return;
-            }
-          }
-          eventRead.attendees[eventRead.attendees.length] = message.author.id;
-        fs.writeFile(filename, JSON.stringify(eventRead), (err) =>{
+        }
+      }else if(eventReader[signup[1]][3][0] == "None"){ // if there's no attendees, just go ahead and sign them up
+        eventReader[signup[1]][3][0] = message.author.id;
+        fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
           if(err){
             console.error(err);
             message.channel.send("Sorry, I couldn't add you. Something went wrong.");
             return;
           }
-          message.channel.send("See you there!");
         });
+        message.channel.send("See you there!");
+        return;
+      }else{
+        // If there are attendees, and this user is not signed up, sign them up
+        eventReader[signup[1]][3][nextAtten] = message.author.id;
       }
+
+      fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
+        if(err){
+          console.error(err);
+          message.channel.send("Sorry, I couldn't add you. Something went wrong.");
+          return;
+        }
+      });
+      message.channel.send("See you there!");
     }
 
 
-  // !remove [event] - Remove an event from TrashBot
+  // !unschedule [event] - Remove an event from TrashBot
+  if(message.content.startsWith(prefix + "unschedule")){
+    // Make sure the user entered an event to sign up for
+    var eventToCancel = message.content.split(" ");
+    if (eventToCancel.length < 2){
+      message.channel.send("I need an event to remove.");
+      message.delete(3500);
+      return;
+    }
+
+    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    if(!eventReader.hasOwnProperty(eventToCancel[1])){
+      message.channel.send("That's not a currently active event.");
+      message.delete(3500);
+      return;
+    }
+    if(!eventReader[eventToCancel[1]][2] == message.author.id || !message.channel.permissionsFor(message.member).has("MANAGE_CHANNELS" || !message.author.id == config.ownerID)){
+      message.channel.send("You don't have permission to do that.");
+      message.delete(3500);
+      return;
+    }
+
+    eventReader.numEvents--;
+    delete eventReader[eventToCancel[1]];
+    fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
+      if(err){
+        console.error(err);
+      }
+    });
+    message.channel.send("The event has been removed.");
+  }
+
+  // !unsign - Remove your signup from an event
+  if(message.content.startsWith(prefix + "unsign")){
+    // Make sure the user entered an event to sign up for
+    var unSign = message.content.split(" ");
+    if (unSign.length < 2){
+      message.channel.send("I need an event to remove you from.");
+      message.delete(3500);
+      return;
+    }
+
+    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    if(!eventReader.hasOwnProperty(unSign[1])){
+      message.channel.send("That's not a currently active event.");
+      message.delete(3500);
+      return;
+    }
+
+    if(!(eventReader[unSign[1]][3][0] == "None")){
+      for(i = 0; i < eventReader[unSign[1]][3].length; i++){
+        if(eventReader[unSign[1]][3][i] == message.author.id){
+          if(eventReader[unSign[1]][3].length <= 1){
+            eventReader[unSign[1]][3][i] = "None";
+          }else{
+            delete eventReader[unSign[1]][3][i];
+          }
+          fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
+            if(err){
+              console.error(err);
+              message.channel.send("Something went wrong. I wasn't able to remove you from this event.");
+            }
+          });
+          message.channel.send("You've been removed from this event.");
+          return;
+        }
+      }
+      message.channel.send("You're not signed up for this event.");
+      message.delete(3500);
+      return;
+    }
+    message.channel.send("You're not signed up for this event.");
+    message.delete(3500);
+    return;
+  }
 
   // !8ball - It's a magic 8 ball
   if(message.content.startsWith(prefix + "8ball")){
@@ -340,7 +449,42 @@ client.on("message", (message) => {
     }
   }
 
-  // !commands - List of TrashBot's commands
+  // !trash - List of TrashBot's commands
+  if(message.content.startsWith(prefix + "trash")){
+    now = new Date()/1000;
+    if (now-lastCommand <= 120){
+      interval = "seconds";
+      if(Math.abs(Math.ceil(lastSent-now)) == 1){
+        interval = "second";
+      }
+      message.channel.send("Slow down! It's only been " + Math.abs(Math.ceil(lastSent-now)) + " " + interval + "! Scroll up if you still need the commands!");
+      message.delete(3500);
+      return;
+    }
+    message.channel.send({embed: {
+      color: 0xffffff,
+      author: {
+        name: client.user.username,
+        icon_url: client.user.avatarURL
+      },
+      title: "TrashBot Commands",
+      fields: [{
+        name: "Scheduling",
+        value: "!schedule EventName mm/dd/yy hhmm.p/a\n- Add an event to my event list\n\n!unschedule EventName\n- Remove an event from my event list\n\n!signup EventName\n- Sign up to be alerted when an event begins\n\n!unsign EventName\n- Remove yourself from an event's signups\n\n!event EventName\n- Display an event's details"
+      },
+      {
+        name: "Fun Stuff",
+        value: "!addfact Fact\n- Add a new fun fact to my list\n\n!fact\n- Recall a fun fact from my fact list\n\n!8ball Question[optional]\n- I tell your fortune, magic eight ball style\n\n!coin\n- Flip a coin"
+      }
+    ],
+      timestamp: new Date(),
+      footer: {
+        icon_url: client.user.avatarURL,
+        text: "Brought to you by TrashBot"
+      }
+    }});
+    lastCommand = new Date().getTime()/1000;
+  }
 });
 
 
@@ -444,6 +588,14 @@ function deleteBotMsg(message){
         message.delete(3000);
       }else if(message.content.startsWith("There's already ")){
         message.delete(3000);
+      }else if(message.content.startsWith("You're already hosting this event.")){
+        message.delete(3000);
+      }else if(message.content.startsWith("I need an event to remove.")){
+        message.delete(3000);
+      }else if(message.content.startsWith("You don't have permission to do that.")){
+        message.delete(3000);
+      }else if(message.content.startsWith("You're not signed up for this event")){
+        message.delete(3000);
       }
     }
 }
@@ -474,37 +626,77 @@ function writeToFile(filename, msg){
 }
 
 function checkSchedules(){
-  var date = new Date();
+  // Do nothing if there are no events
   if(eventsFile.numEvents == 0){
     return;
   }
+  var date = new Date(); // current time
   let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
-  for(var i = 1; i <= eventsFile.numEvents; i++){
-    let newReader = JSON.parse(fs.readFileSync("./" + eventReader[i] + ".json", "utf8"));
-    if (newReader.isEvent == false){
-      return;
-    }
-    var eventCheck = new Date(parseInt(newReader.time));
+  var key = Object.keys(eventReader);
+  for(var i = 0; i < eventsFile.numEvents; i++){
 
-    console.log(eventCheck);
-    console.log(date);
-
-    console.log(eventCheck.getTime());
-    console.log(date.getTime());
-
-    if(eventCheck.getTime() >= date.getTime()){
-      return;
-    }
-    var dateArray = "";
-    if(newReader.attendees.length == 0){
-        dateArray = "None";
+    if(key[i] == "numEvents"){
+      continue;
     }else{
-      for(i = 0; i < newReader.attendees.length; i++){
-        dateArray += "<@" + newReader.attendees[i] + "> ";
+      var eventDate = new Date(parseInt(eventReader[key[i]][1]));
+
+
+      if(date.getTime() >= eventDate.getTime()){
+        continue;
+      }else{
+        var attendeeMention = "";
+        var attendees = "";
+        if(eventReader[key[i]][3] == "None"){
+          attendeeMention = "None";
+          attendees = "None";
+        }else{
+          for(var k = 0; k < eventReader[key[i]][3].length; k++){
+            attendeeMention += "<@" + eventReader[key[i]][3][k] + "> ";
+            if(k == eventReader[key[i]][3].length - 1){
+              attendees += client.users.get(eventReader[key[i]][3][k]).username;
+            }else{
+              attendees += client.users.get(eventReader[key[i]][3][k]).username + ", ";
+            }
+          }
+        }
+        client.channels.find("name", config.announceChannel).send(" " + client.users.get(eventReader[key[i]][2]) + " " + attendeeMention);
+        client.channels.find("name", config.announceChannel).send({embed: {
+          color: 0xfaa61a,
+          title: eventReader[key[i]][0],
+          fields: [{
+            name: "Host",
+            value: client.users.get(eventReader[key[i]][2]).username
+          },
+          {
+            name: "Attendees",
+            value: attendees
+          },
+          {
+            name: "Date",
+            value: eventDate.toDateString(),
+            inline: true
+          },
+          {
+            name: "Time",
+            value: eventDate.toLocaleTimeString() + " (Pacific)",
+            inline: true
+          }
+        ],
+          timestamp: new Date(),
+          footer: {
+            icon_url: client.user.avatarURL,
+            text: "Brought to you by TrashBot"
+          }
+        }});
+        delete eventReader[key[i]];
+        eventReader.numEvents--;
+        fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
+          if(err){
+            console.error(err);
+          }
+        });
       }
     }
-    client.channels.find("name", config.testAnnounceChan).sendMessage("It's time for " + newReader.name + "!\nHost: <@" + newReader.hostID + ">\nAttendees: " + dateArray);
-    config.eventsFile.remove();
   }
 }
 

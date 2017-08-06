@@ -8,7 +8,6 @@
   "dataFile": "./data.json",
   "factMemory": 10,
   "announceChannel": "pantspartygeneral",
-  "testAnnounceChan": "trashbot-garbagedump",
   "botID": "342482063301148672",
   "coinHead": "idea",
   "coinTail": "ass"
