@@ -1,0 +1,18 @@
+{
+  "entries": 15,
+  "1": "Slow down! It's only been ",
+  "2": "Uh. I can't remember a fact about nothing. I'm not SeinfeldBot",
+  "3": "Your event needs",
+  "4": "I need an event to check.",
+  "5": "I couldn't find that event.",
+  "6": "You need an event to sign up to.",
+  "7": "That's not a currently active event",
+  "8": "The date or time provided was invalid.",
+  "9": "This event already exists!",
+  "10": "There's already ",
+  "11": "You're already hosting this event.",
+  "12": "I need an event to remove.",
+  "13": "You don't have permission to do that.",
+  "14": "You're not signed up for this event",
+  "15": "You don't have any tokens."
+}

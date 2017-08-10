@@ -6,8 +6,10 @@
   "eightBallFile": "./eightball.json",
   "eventsFile": "./events.json",
   "dataFile": "./data.json",
+  "gameFile": "./game.json",
+  "botMsgFile": "./botMsgs.json",
   "factMemory": 10,
-  "announceChannel": "pantspartygeneral",
+  "announceChannel": "trashbot-garbagedump",
   "botID": "342482063301148672",
   "coinHead": "idea",
   "coinTail": "ass"

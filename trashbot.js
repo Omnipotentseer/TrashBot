@@ -4,11 +4,15 @@ const client = new Discord.Client();
 const facts = require(config.factFile);
 const magic = require(config.eightBallFile);
 const eventsFile = require(config.eventsFile);
+const game = require(config.gameFile);
+const baseTime = 25200000;
+const oneDay = 86400000;
 //const responseObject = require("./commands.json");
 const fs = require("fs");
 var statedFacts = new Array;
 var lastWritten = 0;
 var lastSent = new Date().getTime()/1000;
+var rollOver = false;
 var lastCommand;
 
 /*
@@ -16,19 +20,13 @@ var lastCommand;
     Reminders - Not a command but allow a specific
       reminder to be broadcast periodically
         + Could have a command to change parameters
-          -Work on after commands update
+          -Work on after minigames update
     !avatar - Full avatar display of a given user
       Person calling the command or given name?
-          -Work on after scheduler update
+          -Work on after minigames update
 
-    !slots - Match 3 emoji, get points
-      Store player name as a key, time since last win as entry 1
-      Time of last spin as entry 2
-      Easier to match lower points, harder to match greater points.
-      Usual slot machine shit.
-      Use edits to simulate slot machine delay.
-      Add username, points earned, and total points on last edit.
-        -Work on after scheduler update
+    Spend trash coins on:
+      Music plays
 */
 
 
@@ -51,15 +49,131 @@ client.on("message", (message) => {
   // Check if this a reply from TrashBot that should be deleted.
   deleteBotMsg(message);
 
+  // Do nothing else if this is a bot message
+  if(message.author.bot) return;
+
+  // Check if the user gets a game token for this message
+
   // Set a prefix
   let prefix = config.prefix;
 
-  // Stop if it's not there or if the sender is a bot
-  if (!message.content.startsWith(prefix) || message.author.bot) return;
+  // Stop if it's not there
+  if (!message.content.startsWith(prefix)){
+    if(gameToken(message.author.id)){
+      message.reply(" won a Trash token! You can use this for [Insert Command]!\nReminder: You can only hold 10 tokens.");
+    }
+    return;
+  }
+
+   // !test
+  if(message.content.startsWith(prefix+ "test") && message.author.id == config.ownerID){
+    // Keep this comment here for linter
+    dailyTokenRefresh();
+  }
+
+  // !slot
+  if(message.content.startsWith(prefix + "slot")){
+    // Check if the user has a token
+    let tokenReader = getReader(config.gameFile);
+    if (!tokenReader.hasOwnProperty(message.author.id)){
+      gameToken(message.author.id);
+      message.channel.send("Looks like you haven't gotten your two free tokens yet. I've just added them to your account, go ahead and try again!");
+      return;
+    }
+    var tokens = tokenReader[message.author.id][0];
+    if(tokens < 1){
+        // If not, kick it back
+        message.channel.send("You don't have any tokens. You can get more randomly by chatting or two per day at the daily reset.");
+        message.delete(3500);
+        return;
+    }
+    // Otherwise, deduct the token
+    tokens--;
+    tokenReader[message.author.id][0] = tokens;
+    var points = tokenReader[message.author.id][1];
+    var winValue;
+    // Spin the "reels"
+    var rng = getRand(1, 10000);
+    var slot = [];
+    // Loss condition - RNG under 5000
+    if(rng <= 5000){
+      slot[0] = getRand(1, 10);
+      slot[1] = getRand(1, 10);
+      while (slot[1] == slot[0]){
+        slot[1] = getRand(1, 10);
+      }
+      slot[2] = getRand(1, 10);
+      winValue = 0;
+      // Win condition ~44% of wins - slot val x2
+    }else if(rng > 5000 && rng <= 9500){
+      rng = getRand(1, 100);
+      if(rng <= 55){
+        slot[0] = 1;
+      }else if(rng > 55 && rng <= 80){
+        slot[0] = 2;
+      }else if(rng > 80){
+        slot[0] = 3;
+      }
+      slot[1] = slot[0];
+      slot[2] = slot[0];
+      winValue = 2;
+      // Win condition ~3% of wins - slot val x3
+    }else if (rng > 9500 && rng <= 9800){
+      if(rng <= 75){
+        slot[0] = 4;
+      }else if(rng > 75 && rng <= 90){
+        slot[0] = 5;
+      }else if(rng > 90){
+        slot[0] = 6;
+      }
+      slot[1] = slot[0];
+      slot[2] = slot[0];
+      winValue = 3;
+      // Win condition ~1.4% of wins - slot val x4
+    }else if(rng > 9800 && rng <= 9940){
+      if(rng <= 90){
+        slot[0] = 7;
+      }else if(rng > 85){
+        slot[0] = 8;
+      }
+      slot[1] = slot[0];
+      slot[2] = slot[0];
+      winValue = 4;
+      // Win condition ~0.5% of wins - slot val x5
+    }else if(rng > 9940 && rng <= 9990){
+      slot[0] = 9;
+      slot[1] = slot[0];
+      slot[2] = slot[0];
+      winValue = 5;
+      // Win condition ~0.1% of wins - slot val x10
+    }else if(rng > 9990 && rng <= 10000){
+      slot[0] = 10;
+      slot[1] = slot[0];
+      slot[2] = slot[0];
+      winValue = 10;
+      // 10* win (10x pt value)
+    }
+
+    points += slot[0]*winValue;
+    message.channel.send({embed: {
+      fields: [{
+        name: "Result",
+        value: game[slot[0]] + game[slot[1]] + game[slot[2]]
+      },{
+        name: "Winnings",
+        value: slot[0]*winValue + " points"
+      },{
+        name: "Total Points",
+        value: points + " points"
+      }]
+    }});
+    // Update the user's points
+    tokenReader[message.author.id][1] = points;
+    // Write the whole thing to the game file
+    writeFile(config.gameFile, tokenReader);
+  }
 
   // Todo: Clean up handling of commands.
-
-
   // !fact - Have TrashBot recall one of his witty facts
   // Todo: Clean this up
   // Todo: Add handling for blank facts
@@ -96,14 +210,19 @@ client.on("message", (message) => {
       lastWritten++;
     }
 
-    // Special handling for fact 21.
-    if(num == 21){
-      var ohhai = getFunFact(num);
-      message.channel.send(ohhai + "<@" + message.author.id + ">");
+
+    let factReader = getReader(config.factFile);
+    var fact = factReader[num];
+    if(num == 21){// Special handling for fact 21.
+      message.channel.send(fact + "<@" + message.author.id + ">");
     }else{
-    message.channel.send(getFunFact(config.factFile, num));
+    message.channel.send(fact);
     lastSent = new Date().getTime()/1000;
-    writeData("fact");
+    let fileReader = getReader(config.dataFile);
+    num = fileReader["fact"];
+    num++;
+    fileReader["fact"] = num;
+    writeFile(config.dataFile, fileReader);
     }
   } // end !fact
 
@@ -123,8 +242,14 @@ client.on("message", (message) => {
         toAdd = toAdd + newFact[i] + " ";
         }
       }
-      toAdd = writeToFile(config.factFile, toAdd);
-      if(toAdd == true){
+      let factReader = getReader(config.factFile);
+      if(!factReader.toAdd){
+        //
+        num = factReader.factNum;
+        num++;
+        factReader[num] = toAdd;
+        factReader.factNum = num;
+        writeFile(config.factFile, factReader);
         message.channel.send("Added!");
       }else{
         message.channel.send("I couldn't add that to my list. It may be a duplicate of an existing fact or the fact file is inaccessible.");
@@ -185,7 +310,7 @@ client.on("message", (message) => {
 
     // todo: Work this into the existing file writing method
     // Write the new file with event details.
-    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    let eventReader = getReader(config.eventsFile);
     var numEvents = eventReader.numEvents;
     if(numEvents >= 10){
       message.channel.send("There's already " + numEvents + " events on my calendar, I'm not keeping track of another one.");
@@ -195,13 +320,7 @@ client.on("message", (message) => {
     numEvents++;
     eventReader.numEvents = numEvents;
     eventReader[eventData[0]] = eventData;
-    fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
-      if(err){
-        console.error(err);
-        message.channel.send("Sorry, something went wrong and I couldn't add this event.");
-        return;
-      }
-    });
+    writeFile(config.eventsFile, eventReader);
     message.channel.send("Added!");
   } // end !schedule
 
@@ -217,7 +336,7 @@ client.on("message", (message) => {
     }
 
     // Open the event file
-    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    let eventReader = getReader(config.eventsFile);
 
     // Stop if the event is not in the event file
     if(!eventReader.hasOwnProperty(checkEvent[1])){
@@ -234,7 +353,7 @@ client.on("message", (message) => {
         if(i == eventReader[checkEvent[1]][3].length - 1){
           attendees += client.users.get(eventReader[checkEvent[1]][3][i]).username;
         }else{
-          attendees += client.users.get(eventReader[checkEvent[1]][3][i]).username; + ", ";
+          attendees += client.users.get(eventReader[checkEvent[1]][3][i]).username + ", ";
         }
       }
     }
@@ -283,7 +402,7 @@ client.on("message", (message) => {
       }
 
       // Validation for signups
-      let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+      let eventReader = getReader(config.eventsFile);
       if(!eventReader.hasOwnProperty(signup[1])){
         message.channel.send("That's not a currently active event.");
         message.delete(3500);
@@ -307,13 +426,7 @@ client.on("message", (message) => {
         }
       }else if(eventReader[signup[1]][3][0] == "None"){ // if there's no attendees, just go ahead and sign them up
         eventReader[signup[1]][3][0] = message.author.id;
-        fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
-          if(err){
-            console.error(err);
-            message.channel.send("Sorry, I couldn't add you. Something went wrong.");
-            return;
-          }
-        });
+        writeFile(config.eventsFile, eventReader);
         message.channel.send("See you there!");
         return;
       }else{
@@ -321,13 +434,7 @@ client.on("message", (message) => {
         eventReader[signup[1]][3][nextAtten] = message.author.id;
       }
 
-      fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) =>{
-        if(err){
-          console.error(err);
-          message.channel.send("Sorry, I couldn't add you. Something went wrong.");
-          return;
-        }
-      });
+      writeFile(config.eventsFile, eventReader);
       message.channel.send("See you there!");
     }
 
@@ -342,7 +449,7 @@ client.on("message", (message) => {
       return;
     }
 
-    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    let eventReader = getReader(config.eventsFile);
     if(!eventReader.hasOwnProperty(eventToCancel[1])){
       message.channel.send("That's not a currently active event.");
       message.delete(3500);
@@ -356,11 +463,7 @@ client.on("message", (message) => {
 
     eventReader.numEvents--;
     delete eventReader[eventToCancel[1]];
-    fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
-      if(err){
-        console.error(err);
-      }
-    });
+    writeFile(config.eventsFile, eventReader);
     message.channel.send("The event has been removed.");
   }
 
@@ -374,7 +477,7 @@ client.on("message", (message) => {
       return;
     }
 
-    let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+    let eventReader = getReader(config.eventsFile);
     if(!eventReader.hasOwnProperty(unSign[1])){
       message.channel.send("That's not a currently active event.");
       message.delete(3500);
@@ -389,12 +492,7 @@ client.on("message", (message) => {
           }else{
             delete eventReader[unSign[1]][3][i];
           }
-          fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
-            if(err){
-              console.error(err);
-              message.channel.send("Something went wrong. I wasn't able to remove you from this event.");
-            }
-          });
+          writeFile(config.eventsFile, eventReader);
           message.channel.send("You've been removed from this event.");
           return;
         }
@@ -421,8 +519,14 @@ client.on("message", (message) => {
       return;
     }
     num = getRand(1, magic.phrases);
-    message.channel.send("🎱 " + getFunFact(config.eightBallFile, num));
-    writeData("eightball");
+    let ballReader = getReader(config.eightBallFile);
+    fact = ballReader[num];
+    message.channel.send("🎱 " + fact);
+    let fileReader = getReader(config.dataFile);
+    num = fileReader["eightball"];
+    num++;
+    fileReader["eightball"] = num;
+    writeFile(config.dataFile, fileReader);
   }
 
   // !coin - Coin flip
@@ -441,11 +545,19 @@ client.on("message", (message) => {
     if(getRand(1, 2) == 1){
       const heads = message.guild.emojis.find("name", config.coinHead);
       message.channel.send(`${heads}` + " heads!");
-      writeData("coin");
+      let fileReader = getReader(config.dataFile);
+      num = fileReader["coin"];
+      num++;
+      fileReader["coin"] = num;
+      writeFile(config.dataFile, fileReader);
     }else{
       const tails = message.guild.emojis.find("name", config.coinTail);
       message.channel.send(`${tails}` + " tails!");
-      writeData("coin");
+      let fileReader = getReader(config.dataFile);
+      num = fileReader["coin"];
+      num++;
+      fileReader["coin"] = num;
+      writeFile(config.dataFile, fileReader);
     }
   }
 
@@ -564,76 +676,34 @@ function fileExists(name){
 // Check if a message should be deleted and clear it
 function deleteBotMsg(message){
   if(message.author.id == config.botID){
-    if(message.content.startsWith("Slow down! It's only been ")){
-        message.delete(3000);
-      }else if(message.content.startsWith("Uh. I can't remember a fact about nothing. I'm not SeinfeldBot")){
-        message.delete(3000);
-      }else if(message.content.startsWith("Your event needs a name.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("Your event needs a time.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("I need an event to check.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("I couldn't find that event.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("You need an event to sign up to.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("That's not a currently active event")){
-        message.delete(3000);
-      }else if(message.content.startsWith("Your event needs a date.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("The date or time provided was invalid.")){
-        message.delete(9000);
-      }else if(message.content.startsWith("This event already exists!")){
-        message.delete(3000);
-      }else if(message.content.startsWith("There's already ")){
-        message.delete(3000);
-      }else if(message.content.startsWith("You're already hosting this event.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("I need an event to remove.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("You don't have permission to do that.")){
-        message.delete(3000);
-      }else if(message.content.startsWith("You're not signed up for this event")){
+    let messageReader = getReader(config.botMsgFile);
+    for(var i = 1; i <= messageReader.entries; i++){
+      var text = messageReader[i];
+      if(message.content.startsWith(text)){
         message.delete(3000);
       }
     }
-}
-
-// Return a fun fact from facts.json based on a provided integer
-function getFunFact(filename, num) {
-  let funFact = JSON.parse(fs.readFileSync(filename, "utf8"));
-  return funFact[num];
-}
-
-// Todo: Update file writing to not use the string literal for modularity
-// Write new fun facts to the fact file. :^)
-function writeToFile(filename, msg){
-  let funFact = JSON.parse(fs.readFileSync(filename, "utf8"));
-  if(!funFact.toAdd){
-    var num = facts.factNum;
-    num++;
-    facts[num] = msg;
-    facts.factNum = num;
-    fs.writeFile(filename, JSON.stringify(facts), (err) => {
-      if (err){
-        console.error(err);
-        return false;
-      }
-    });
-    return true;
   }
 }
 
 function checkSchedules(){
+  // check for daily token refresh
+  var date = new Date(); // current time
+  if((date.getTime() - baseTime)%oneDay >= 0 && (date.getTime() - baseTime)%oneDay <= 300000){ // If it is midnight or within five minutes
+    dailyTokenRefresh();
+  }
+
+  if((date.getTime() - baseTime)%oneDay > 300000 && rollOver == true){ // If it is past 12:05am and rollover has occurred - reset
+    rollOver = false;
+  }
+
   // Do nothing if there are no events
   if(eventsFile.numEvents == 0){
     return;
   }
-  var date = new Date(); // current time
-  let eventReader = JSON.parse(fs.readFileSync(config.eventsFile, "utf8"));
+  let eventReader = getReader(config.eventsFile);
   var key = Object.keys(eventReader);
-  for(var i = 0; i < eventsFile.numEvents; i++){
+  for(var i = 0; i <= eventsFile.numEvents; i++){
 
     if(key[i] == "numEvents"){
       continue;
@@ -690,27 +760,10 @@ function checkSchedules(){
         }});
         delete eventReader[key[i]];
         eventReader.numEvents--;
-        fs.writeFile(config.eventsFile, JSON.stringify(eventReader), (err) => {
-          if(err){
-            console.error(err);
-          }
-        });
+        writeFile(config.eventsFile, eventReader);
       }
     }
   }
-}
-
-// Todo: Destroy this and fix the fucking write to file method you chud
-function writeData(command){
-  let readFile = JSON.parse(fs.readFileSync(config.dataFile, "utf8"));
-  var num = readFile[command];
-  num++;
-  readFile[command] = num;
-  fs.writeFile(config.dataFile, JSON.stringify(readFile), (err) => {
-    if (err){
-      console.error(err);
-    }
-  });
 }
 
 function convertTime(time){
@@ -729,4 +782,59 @@ function convertDate(date){
   date = date.split("/");
   date = new Date(parseInt(date[2]), parseInt(date[0]-1), parseInt(date[1]));
   return date;
+}
+
+function gameToken(authID){
+  if(authID == config.botID){
+    return false;
+  }
+  let readFile = getReader(config.gameFile);
+  if(!readFile.hasOwnProperty(authID)){
+    readFile[authID] = [2, 0];
+    writeFile(config.gameFile, readFile);
+    return;
+  }
+  var num = getRand(1, 1000);
+  if(num >  980){
+    var tokens = readFile[authID][0];
+    if(tokens >= 10){
+      return false;
+    }
+    tokens++;
+    readFile[authID][0] = tokens;
+    writeFile(config.gameFile, readFile);
+    return true;
+  }
+
+}
+
+function getReader(filename){
+  return JSON.parse(fs.readFileSync(filename, "utf8"));
+}
+
+function writeFile(filename, data){
+  fs.writeFile(filename, JSON.stringify(data), (err) =>{
+    if(err){
+      console.error(err);
+    }
+  });
+}
+
+// Daily token refresh. Set to 2 tokens if the total tokens is less than 2
+function dailyTokenRefresh(){
+  if(rollOver == true){
+    return;
+  }
+  let gameReader = getReader(config.gameFile);
+  var keys = Object.keys(gameReader);
+  for(var i = 10; i < Object.keys(gameReader).length; i++){
+    if (gameReader[keys[i]][0] < 2){
+      var num = gameReader[keys[i]][0];
+      num = 2;
+      gameReader[keys[i]][0] = num;
+    }
+  }
+  writeFile(config.gameFile, gameReader);
+  client.channels.find("name", "your-private-messages").send("Daily token reset has been processed.");
+  rollOver = true;
 }
