@@ -12,5 +12,7 @@
   "announceChannel": "trashbot-garbagedump",
   "botID": "342482063301148672",
   "coinHead": "idea",
-  "coinTail": "ass"
+  "coinTail": "ass",
+  "trashToken": "token",
+  "trashCoin": "trashcoin"
 }
