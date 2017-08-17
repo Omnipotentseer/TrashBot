@@ -1,6 +1,6 @@
 {
   "gameSet": "!trash for commands",
-  "bonusCoin": "<@%n> %c won a bonus Trash Coin!\nTotal: %cx%t",
+  "bonusCoin": "<@%n>  won some bonus Trash Coins!\nWon: %cx3\nTotal: %cx%t",
   "nsfCoins": "You need %cx3 to play.\nTotal: %cx%t\n You can get more randomly by chatting or ten per day at the daily reset.",
   "trashPlug": "Presented by TrashBot",
   "rapidCommand": "Slow down! It's only been ",
@@ -22,5 +22,13 @@
   "notSignedUp": "You're not signed up for this event.",
   "cmdSched": "!schedule EventName mm/dd/yy hhmm.p/a\n- Add an event to my event list\n\n!unschedule EventName\n- Remove an event from my event list\n\n!signup EventName\n- Sign up to be alerted when an event begins\n\n!unsign EventName\n- Remove yourself from an event's signups\n\n!event EventName\n- Display an event's details",
   "cmdFun": "!addfact Fact\n- Add a new fun fact to my list\n\n!fact\n- Recall a fun fact from my fact list\n\n!8ball Question[optional]\n- I tell your fortune, magic eight ball style\n\n!coin\n- Flip a coin\n\n!slot\n- Play the TrashBot slots",
-  "dailyReset": "Tokens have been reset. If you had less than ten, you now have ten."
+  "dailyReset": "Tokens have been reset. If you had less than ten, you now have ten.",
+  "slut": ["Excuse me?", "What did you just call me?", "Well that's just rude.", "...", "I hope you're not doing this unironically.", "Not until you spell it correctly.", "N-no... You are!", "Senpai noticed!", "Jealous?", "💤", "No, I'm a bi- wait what gender am I?", "What are the odds you're doing this try and see all of them?", "This response exists because of people like you.", "No, there will never be an !addslut... Though I'm down for that.", "...Why?", "I'm keeping track of-- oh, wrong command.", "I have more responses to this than people you've slept with. I hope. Otherwise this is just shamefully ironic.", "If you call me that again I'm going to take away all your coins. Maybe. It's up to you if you want to chance it.", "Only for you, baby.", "No, that's BepisBot.", "Congratulations! You won nothing. And lost nothing. Kind of a wash really.", "You found the secret command! You win... Something? A firm pat on the back! From yourself. Go ahead, I'll wait.", "Please don't spam this. This command is awful.", "That's really ruff, dogging on me like that. Fur real, next time paws before you bark out a mastiff insult like that, it's the leashed you could do instead of hounding me.", "Well, this is awkward.", "So uh, maybe try again?", "Goodnight, everybody!"],
+  "csLink": "http://www.cheapshark.com",
+  "csTitleSearch": "/api/1.0/deals?&title=",
+  "csIDSearch": "http://www.cheapshark.com/api/1.0/games?id=",
+  "csDealSearch": "http://www.cheapshark.com/redirect?dealID=",
+  "csImg": "/img/stores/logos",
+  "csSearchFail": "Sorry, I couldn't find anything with that title.",
+  "csNotAvailable": "Sorry, this doesn't seem to be available."
 }

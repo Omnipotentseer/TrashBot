@@ -1,22 +1,27 @@
 const Discord = require("discord.js");
 const config = require("./config.json");
+var request = require("request");
 const client = new Discord.Client();
 const facts = require(config.factFile);
 const magic = require(config.eightBallFile);
 const eventsFile = require(config.eventsFile);
 const game = require(config.gameFile);
+const trackedGames = require(config.trackedGamesFile);
 const strings = require("./strings.json");
 const baseTime = 25200000;
 const oneDay = 86400000;
+const halfHour = 1800000;
 //const responseObject = require("./commands.json");
 const fs = require("fs");
-var statedFacts = new Array;
+var salesAnnounced = new Date(baseTime);
+var statedFacts = [new Array];
 var lastWritten = 0;
-var lastSent = new Date().getTime()/1000;
+var lastSent;
 var rollOver = false;
 var lastCommand;
 var toDelete = false;
 var written = true;
+var thumbNail;
 
 /*
   ----------------Suggestion bin------------------
@@ -40,6 +45,7 @@ client.on("ready", () => {
   console.log("TrashBot connected.");
   client.user.setGame(strings.gameSet);
   var timeInterval = setInterval(function(){doTick();}, 60000);
+  var csInterval = setInterval(function(){checkCSSale();}, halfHour);
 });
 
 // Error handlers
@@ -76,10 +82,55 @@ client.on("message", (message) => {
   const args = message.content.slice(config.prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
 
+  if(command == "test"){
+    //
+  }
 
-  // !test
-  if(command == "test" && message.author.id == config.ownerID){
-    message.channel.send("It's lit fam");
+  // !cheapshark - Search for sales on a given game name
+  if(command == "cheapshark"){
+    //
+    if(args.length < 1){
+      message.channel.send("Need a title, dog. :^)");
+      return;
+    }
+    var link = strings.csLink + strings.csTitleSearch;
+    for(i = 0; i < args.length; i++){
+      if(i == args.length-1){
+        link += args[i];
+      }else{
+        link += args[i] + "%20";
+      }
+    }
+    const trash = async() =>{
+      var gameID = await getCSGameID(link);
+      if(gameID == false){
+        message.channel.send(strings.csSearchFail);
+        return;
+      }
+      request({
+        method: "GET",
+        url: strings.csIDSearch + gameID,
+        json: true
+      }, function(e, r, body){
+          var bestPrice = 0;
+          for(i = 1; i < body["deals"].length; i++){
+              if(parseInt(body["deals"][i].price) < parseInt(body["deals"][i-1].price)){
+                bestPrice = i;
+              }
+          }
+          const embed = new Discord.RichEmbed();
+          embed.setAuthor("CheapShark", strings.csLink + "/img/logo_image.png");
+          embed.setTitle(body["info"].title);
+          embed.setThumbnail(thumbNail);
+          embed.addField("Price","$" + body["deals"][parseInt(bestPrice)].price, true);
+          embed.addField("Full Price","$" + body["deals"][parseInt(bestPrice)].retailPrice, true);
+          embed.addField("Cheapest Ever","$" + body["cheapestPriceEver"].price, true);
+          embed.addField("Purchase", strings.csDealSearch + body["deals"][bestPrice].dealID);
+          message.channel.send({embed});
+      });
+    };
+    trash();
+
   }
 
   // !lmgtfy
@@ -148,7 +199,7 @@ client.on("message", (message) => {
       }
       slot[1] = slot[0];
       slot[2] = slot[0];
-      winValue = 2;
+      winValue = 3;
       // Win condition ~5% of wins - slot val x3
     }else if (rng > 9300 && rng <= 9800){
       rng = getRand(1, 100);
@@ -161,7 +212,7 @@ client.on("message", (message) => {
       }
       slot[1] = slot[0];
       slot[2] = slot[0];
-      winValue = 3;
+      winValue = 4;
       // Win condition ~1.4% of wins - slot val x4
     }else if(rng > 9800 && rng <= 9940){
       if(rng <= 90){
@@ -171,13 +222,13 @@ client.on("message", (message) => {
       }
       slot[1] = slot[0];
       slot[2] = slot[0];
-      winValue = 4;
+      winValue = 5;
       // Win condition ~0.5% of wins - slot val x5
     }else if(rng > 9940 && rng <= 9990){
       slot[0] = 9;
       slot[1] = slot[0];
       slot[2] = slot[0];
-      winValue = 5;
+      winValue = 6;
       // Win condition ~0.1% of wins - slot val x10
     }else if(rng > 9990 && rng <= 10000){
       slot[0] = 10;
@@ -208,27 +259,36 @@ client.on("message", (message) => {
     writeFile(config.gameFile, tokenReader);
   }
 
+  // !slut - Since my server is a bunch of fools <3
+  if(command == "slut"){
+    var timeOut = checkTimeout(message, 5, lastSent);
+    if(timeOut == true){
+      return;
+    }
+    rng = getRand(0, strings["slut"].length-1);
+    str = strings["slut"][rng];
+    message.channel.send(str);
+  }
+
+  if(command == "lottery"){
+    //
+  }
+
   // Todo: Clean up handling of commands.
   // !fact - Have TrashBot recall one of his witty facts
   // Todo: Clean this up
   // Todo: Add handling for blank facts
   if(command == "fact"){
-    var now = new Date().getTime()/1000;
-    if (now-lastSent <= 5){
-      var interval = "seconds";
-      if(Math.abs(Math.ceil(lastSent-now)) == 1){
-        interval = "second";
-      }
-      message.channel.send("Slow down! It's only been " + Math.abs(Math.ceil(lastSent-now)) + " " + interval + " since my last fact!");
-      message.delete(3500);
+    timeOut = checkTimeout(message, 5, lastSent);
+    if(timeOut == true){
       return;
     }
+
     var freshFact = false;
     var num = getRand(1, facts.factNum);
-
     // Check if the number pulled is in the repeat array
     while(freshFact == false){
-      for (var i = 0; i < statedFacts.length; i++){
+      for (var i = 0; i <= statedFacts.length; i++){
         if (num == statedFacts[i]){
           num = getRand(1, facts.factNum);
           break;
@@ -237,7 +297,6 @@ client.on("message", (message) => {
         }
       }
     }
-
     // Store the fact in the fact array, return to the start if we've reached the end
     statedFacts[lastWritten] = num;
     if(lastWritten == config.factMemory){
@@ -245,8 +304,6 @@ client.on("message", (message) => {
     }else{
       lastWritten++;
     }
-
-
     let factReader = getReader(config.factFile);
     var fact = factReader[num];
     if(num == 21){// Special handling for fact 21.
@@ -528,14 +585,8 @@ client.on("message", (message) => {
 
   // !8ball - It's a magic 8 ball
   if(command == "8ball"){
-    now = new Date().getTime()/1000;
-    if (now-lastSent <= 5){
-      interval = "seconds";
-      if(Math.abs(Math.ceil(lastSent-now)) == 1){
-        interval = "second";
-      }
-      message.channel.send(strings.rapidCommand + Math.abs(Math.ceil(lastSent-now)) + " " + interval + " since my last prediction!");
-      message.delete(3500);
+    timeOut = checkTimeout(message, 5, lastSent);
+    if(timeOut == true){
       return;
     }
     num = getRand(1, magic.phrases);
@@ -551,17 +602,10 @@ client.on("message", (message) => {
 
   // !coin - Coin flip
   if(command == "coin"){
-    now = new Date().getTime()/1000;
-    if (now-lastSent <= 5){
-      interval = "seconds";
-      if(Math.abs(Math.ceil(lastSent-now)) == 1){
-        interval = "second";
-      }
-      message.channel.send(strings.rapidCommand + Math.abs(Math.ceil(lastSent-now)) + " " + interval + " since your last flip!");
-      message.delete(3500);
+    timeOut = checkTimeout(message, 5, lastSent);
+    if(timeOut == true){
       return;
     }
-
     if(getRand(1, 2) == 1){
       const heads = message.guild.emojis.find("name", config.coinHead);
       message.channel.send(`${heads}` + " heads!");
@@ -583,14 +627,8 @@ client.on("message", (message) => {
 
   // !trash - List of TrashBot's commands
   if(command == "trash"){
-    now = new Date()/1000;
-    if (now-lastCommand <= 120){
-      interval = "seconds";
-      if(Math.abs(Math.ceil(lastSent-now)) == 1){
-        interval = "second";
-      }
-      message.channel.send(strings.rapidCommand + Math.abs(Math.ceil(lastSent-now)) + " " + interval + "! Scroll up if you still need the commands!");
-      message.delete(3500);
+    timeOut = checkTimeout(message, 120, lastCommand);
+    if (timeOut == true){
       return;
     }
     message.channel.send({embed: {
@@ -845,6 +883,87 @@ function dailyTokenRefresh(){
   writeFile(config.gameFile, gameReader);
   client.channels.find("name", config.announceChannel).send(strings.dailyReset);
   rollOver = true;
+}
+
+function checkTimeout(message, secs, timer){
+  var now = new Date().getTime()/1000;
+  if (now-timer <= secs){
+    var interval = "seconds";
+    if(Math.abs(Math.ceil(timer-now)) == 1){
+      interval = "second";
+    }
+    message.channel.send("Slow down! It's only been " + Math.abs(Math.ceil(timer-now)) + " " + interval + "!");
+    message.delete(3500);
+    return true;
+  }
+  return false;
+}
+
+function getCSGameID(link){
+  var gameID;
+  return new Promise(function(resolve, reject) {
+    request.get({url:link, json:true}, function(e, r, body){
+      if(e){
+        reject(e);
+      }
+      if(body.length < 1){
+        gameID = false;
+      }else{
+        thumbNail = body[0].thumb;
+        gameID = body[0].gameID;
+      }
+      resolve(gameID);
+    });
+  });
+}
+
+function checkCSSale(){
+  // Check if the file has tracked games, exit if not
+  if(trackedGames.trackedGames < 1){
+    return;
+  }
+
+  // Iterate through the tracked games
+  var now = new Date();
+  for(var i = 1; i <= trackedGames.trackedGames; i++){
+    if(salesAnnounced != "undefined"){
+      if (now.getTime() - salesAnnounced.getTime() < 21600000){
+        return;
+      }
+    }
+    // Pull the game's details from CheapShark
+    request.get({url:trackedGames[i], json:true}, function(e, r, body){
+      var bestPrice = 0;
+      var sale = false;
+      // Check the game's deals
+      for (var k = 0; k < body["deals"].length; k++){
+        if(body["deals"][k].savings > 0){          // Mark if the game is on sale and the best price
+          sale = true;
+          if(body["deals"][k].savings > body["deals"][bestPrice].savings){
+            bestPrice = k;
+          }
+
+        }
+      }
+      // If no sale was found, we exit.
+      if(sale == false){
+        return;
+      // Otherwise, we announce it
+      }else if(sale == true){
+        const embed = new Discord.RichEmbed();
+        embed.setAuthor("CheapShark", strings.csLink + strings.csImg);
+        embed.setDescription(body["info"].title + " is on sale!");
+        embed.setThumbnail(trackedGames.thumbs[i-1]);
+        embed.addField("Price","$" + body["deals"][bestPrice].price, true);
+        embed.addField("Full Price","$" + body["deals"][bestPrice].retailPrice, true);
+        embed.addField("Cheapest Ever","$" + body["cheapestPriceEver"].price, true);
+        embed.addField("Purchase", strings.csDealSearch + body["deals"][bestPrice].dealID);
+        client.channels.find("name", config.announceChannel).send({embed});
+        salesAnnounced = now;
+      }
+    });
+  }
+
 }
 
 function strReplacer(string){
