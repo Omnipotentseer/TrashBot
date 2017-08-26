@@ -10,6 +10,7 @@
   "botMsgFile": "./botMsgs.json",
   "trackedGamesFile": "./csgames.json",
   "lottoFile": "./lottery.json",
+  "scratchFile": "./scratch.json",
   "factMemory": 10,
   "announceChannel": "trashbot-garbagedump",
   "botID": "342482063301148672",

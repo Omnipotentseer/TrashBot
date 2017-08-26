@@ -1,0 +1,7 @@
+{
+  "name": "TrashBot",
+  "version": "0.6.0",
+  "description": "A Discord bot that does a lot of dumb garbage",
+  "main": "trashbot.js",
+  "author": "Bryan F."
+}

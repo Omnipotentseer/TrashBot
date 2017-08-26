@@ -1,5 +1,5 @@
 {
-  "entries": 15,
+  "entries": 17,
   "1": "Slow down! It's only been ",
   "2": "Uh. I can't remember a fact about nothing. I'm not SeinfeldBot",
   "3": "Your event needs",
@@ -14,5 +14,10 @@
   "12": "I need an event to remove.",
   "13": "You don't have permission to do that.",
   "14": "You're not signed up for this event",
-  "15": "You don't have any tokens."
+  "15": "You need ",
+  "16": "Sorry, I couldn't find anything with that title.",
+  "17": "You're already entered ",
+  "18": "You've already received a scratch ticket today.",
+  "19": "You already have an active ticket!",
+  "20": "You do not have this feature unlocked"
 }
